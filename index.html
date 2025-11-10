@@ -232,7 +232,7 @@
       position: fixed;
       bottom: 30px;
       right: 30px;
-      z-index: 10000;
+      z-index: 8888; /* Ниже чем z-index виджета, чтобы не перекрывать его */
       background: white;
       padding: 20px;
       border-radius: 16px;
@@ -241,6 +241,7 @@
       align-items: center;
       gap: 12px;
       animation: fadeIn 0.3s ease;
+      pointer-events: none; /* Лоадер не блокирует клики */
     }
 
     .widget-loader.active {
@@ -309,7 +310,10 @@
   <div class="editor-container">
     <div class="editor-header">
       <span>📝 Код виджета</span>
-      <button class="btn" onclick="loadWidget(event); return false;">🚀 Загрузить виджет</button>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn" onclick="loadWidget(event); return false;">🚀 Загрузить виджет</button>
+        <button class="btn" style="background: #6b7280;" onclick="inspectDOM(); return false;">🔍 Проверить DOM</button>
+      </div>
     </div>
     <textarea id="widgetCode" spellcheck="false" placeholder='Вставь сюда код, например:
 <script 
@@ -356,9 +360,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Контейнер для динамической загрузки виджета -->
-  <div id="widgetContainer"></div>
 
   <script>
     // ========================================
@@ -467,6 +468,144 @@
     }
 
     // ========================================
+    // Инспектор DOM
+    // ========================================
+    function inspectDOM() {
+      addLog('🔍 Проверяю текущее состояние DOM...', 'info');
+      
+      // Проверяем все элементы в body
+      const allElements = document.body.querySelectorAll('*');
+      let widgetFound = false;
+      
+      addLog(`📊 Всего элементов в DOM: ${allElements.length}`, 'info');
+      
+      // Ищем потенциальные элементы виджета
+      const potentialWidgets = [];
+      allElements.forEach(el => {
+        const hasWidgetId = el.id && (el.id.includes('widget') || el.id.includes('chat') || el.id.includes('assistant'));
+        const hasWidgetClass = el.className && typeof el.className === 'string' && 
+          (el.className.includes('widget') || el.className.includes('chat') || el.className.includes('assistant'));
+        const isIframe = el.tagName === 'IFRAME';
+        
+        if ((hasWidgetId || hasWidgetClass || isIframe) && 
+            !el.id.includes('widgetLoader') && 
+            !el.id.includes('widgetCode')) {
+          potentialWidgets.push({
+            tag: el.tagName,
+            id: el.id || 'нет',
+            class: el.className || 'нет',
+            visible: el.offsetWidth > 0 && el.offsetHeight > 0,
+            position: window.getComputedStyle(el).position,
+            zIndex: window.getComputedStyle(el).zIndex,
+            display: window.getComputedStyle(el).display
+          });
+        }
+      });
+      
+      if (potentialWidgets.length > 0) {
+        addLog(`✅ Найдено ${potentialWidgets.length} элементов похожих на виджет:`, 'success');
+        potentialWidgets.forEach((w, i) => {
+          addLog(`  ${i+1}. <${w.tag}> id="${w.id}" class="${w.class}" visible=${w.visible} position=${w.position} z-index=${w.zIndex} display=${w.display}`, 'info');
+        });
+      } else {
+        addLog('❌ Элементы виджета не найдены в DOM', 'error');
+      }
+      
+      // Проверяем скрипты
+      const scripts = document.querySelectorAll('script[data-lawyer-id]');
+      if (scripts.length > 0) {
+        addLog(`📜 Найдено ${scripts.length} скриптов виджета`, 'success');
+        scripts.forEach((s, i) => {
+          addLog(`  ${i+1}. src="${s.src}" lawyer-id="${s.getAttribute('data-lawyer-id')}"`, 'info');
+        });
+      } else {
+        addLog('⚠️ Скрипты виджета не найдены', 'warning');
+      }
+      
+      return false;
+    }
+
+    // ========================================
+    // Детектор появления виджета
+    // ========================================
+    let widgetObserver = null;
+    
+    function startWidgetDetection() {
+      // Останавливаем предыдущий observer если есть
+      if (widgetObserver) {
+        widgetObserver.disconnect();
+      }
+
+      addLog('👀 Запускаю детектор виджета в DOM...', 'info');
+
+      // Создаем MutationObserver для отслеживания добавления элементов
+      widgetObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.addedNodes.length > 0) {
+            mutation.addedNodes.forEach((node) => {
+              // Логируем ВСЕ добавляемые элементы для отладки
+              if (node.nodeType === 1) { // ELEMENT_NODE
+                const tag = node.tagName;
+                const id = node.id || '';
+                const className = typeof node.className === 'string' ? node.className : '';
+                
+                // Логируем каждый добавленный элемент
+                addLog(`➕ Добавлен элемент: <${tag}> id="${id}" class="${className}"`, 'info');
+                
+                // Проверяем разные варианты виджетов
+                const isWidget = 
+                  id.includes('widget') || 
+                  id.includes('chat') ||
+                  id.includes('assistant') ||
+                  id.includes('beagle') ||
+                  className.includes('widget') ||
+                  className.includes('chat') ||
+                  className.includes('assistant') ||
+                  className.includes('beagle') ||
+                  (tag === 'IFRAME' && node.src?.includes('assistant')) ||
+                  (tag === 'IFRAME' && node.src?.includes('beagle')) ||
+                  tag === 'DIV' && node.querySelector('iframe');
+                
+                if (isWidget) {
+                  addLog(`✅ ВИДЖЕТ ОБНАРУЖЕН! <${tag}> id="${id}" class="${className}"`, 'success');
+                  
+                  // Проверяем видимость
+                  setTimeout(() => {
+                    const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
+                    const style = window.getComputedStyle(node);
+                    addLog(`  📐 Видимость: ${isVisible}, display: ${style.display}, position: ${style.position}, z-index: ${style.zIndex}`, 'info');
+                    
+                    if (isVisible) {
+                      hideLoader();
+                      addLog('🎉 Виджет полностью загружен и ВИДЕН!', 'success');
+                    } else {
+                      addLog('⚠️ Виджет в DOM, но НЕ ВИДЕН! Проверь CSS...', 'warning');
+                      // Всё равно скрываем лоадер
+                      setTimeout(hideLoader, 2000);
+                    }
+                    
+                    // Останавливаем наблюдение
+                    if (widgetObserver) {
+                      widgetObserver.disconnect();
+                    }
+                  }, 500);
+                }
+              }
+            });
+          }
+        }
+      });
+
+      // Начинаем наблюдение за body
+      widgetObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'id', 'style']
+      });
+    }
+
+    // ========================================
     // Функция загрузки виджета
     // ========================================
     function loadWidget(event) {
@@ -480,10 +619,14 @@
       showLoader('Подготовка...', 10);
       
       const code = document.getElementById('widgetCode').value.trim();
-      const container = document.getElementById('widgetContainer');
       
-      // Очищаем предыдущий виджет
-      container.innerHTML = '';
+      // Удаляем все старые элементы виджета
+      document.querySelectorAll('[id*="widget"], [id*="chat"], [class*="widget"], [class*="chat"]').forEach(el => {
+        if (!el.id.includes('widgetLoader') && !el.id.includes('widgetCode')) {
+          addLog(`🗑️ Удаляю старый элемент виджета: ${el.tagName}`, 'warning');
+          el.remove();
+        }
+      });
       
       // Удаляем все старые скрипты виджета
       const oldScripts = document.querySelectorAll('script[data-lawyer-id]');
@@ -524,6 +667,9 @@
       
       setTimeout(() => updateLoaderText('Загрузка скрипта...', 40), 400);
       
+      // ВАЖНО: Запускаем детектор виджета ДО добавления скрипта
+      startWidgetDetection();
+      
       // Создаем новый script элемент
       const newScript = document.createElement('script');
       
@@ -532,26 +678,33 @@
         newScript.setAttribute(attr.name, attr.value);
       });
       
+      // Таймер безопасности - если виджет не появился за 10 секунд
+      let safetyTimer = setTimeout(() => {
+        addLog('⚠️ Виджет не обнаружен за 10 секунд. Возможно ошибка на сервере.', 'warning');
+        hideLoader();
+        if (widgetObserver) {
+          widgetObserver.disconnect();
+        }
+      }, 10000);
+      
       // Отслеживаем загрузку скрипта
       newScript.onload = function() {
         addLog('✅ Скрипт виджета успешно загружен', 'success');
-        addLog('⏳ Ожидаю инициализацию виджета...', 'info');
-        updateLoaderText('Инициализация виджета...', 70);
+        addLog('⏳ Ожидаю появление виджета в DOM...', 'info');
+        updateLoaderText('Ожидание виджета...', 70);
         
-        // Скрываем лоадер через 3 секунды (даем время виджету инициализироваться)
         setTimeout(() => {
-          updateLoaderText('Почти готово...', 90);
+          updateLoaderText('Поиск виджета...', 85);
         }, 1500);
-        
-        setTimeout(() => {
-          hideLoader();
-          addLog('✅ Виджет должен быть готов!', 'success');
-        }, 3000);
       };
       
       newScript.onerror = function(e) {
         addLog(`❌ Ошибка загрузки скрипта: ${e}`, 'error');
         hideLoader();
+        clearTimeout(safetyTimer);
+        if (widgetObserver) {
+          widgetObserver.disconnect();
+        }
       };
       
       // Добавляем скрипт в body
