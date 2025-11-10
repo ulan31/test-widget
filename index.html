@@ -128,6 +128,176 @@
       right: 20px;
       z-index: 9999;
     }
+
+    /* Консоль отладки */
+    .debug-console {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+      width: 100%;
+      max-width: 800px;
+      margin-top: 20px;
+    }
+
+    .console-header {
+      background: #1f2937;
+      color: white;
+      padding: 12px 20px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .console-body {
+      padding: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      background: #f9fafb;
+    }
+
+    .log-entry {
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      border-left: 3px solid #3b82f6;
+      background: white;
+    }
+
+    .log-entry.error {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .log-entry.success {
+      border-left-color: #10b981;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .log-entry.warning {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+      color: #92400e;
+    }
+
+    .log-time {
+      color: #6b7280;
+      font-size: 11px;
+      margin-right: 8px;
+    }
+
+    .btn-clear {
+      background: #6b7280;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+
+    .btn-clear:hover {
+      background: #4b5563;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+
+    .status-loading {
+      background: #f59e0b;
+    }
+
+    .status-success {
+      background: #10b981;
+    }
+
+    .status-error {
+      background: #ef4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Лоадер виджета */
+    .widget-loader {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      z-index: 10000;
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      display: none;
+      align-items: center;
+      gap: 12px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .widget-loader.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loader-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1f2937;
+    }
+
+    .loader-subtext {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -139,7 +309,7 @@
   <div class="editor-container">
     <div class="editor-header">
       <span>📝 Код виджета</span>
-      <button class="btn" onclick="loadWidget()">🚀 Загрузить виджет</button>
+      <button class="btn" onclick="loadWidget(event); return false;">🚀 Загрузить виджет</button>
     </div>
     <textarea id="widgetCode" spellcheck="false" placeholder='Вставь сюда код, например:
 <script 
@@ -161,12 +331,154 @@
     Виджет появится справа внизу этой страницы ⬇️
   </div>
 
+  <!-- Консоль отладки -->
+  <div class="debug-console">
+    <div class="console-header">
+      <span>🔍 Консоль отладки</span>
+      <button class="btn btn-clear" onclick="clearLogs()">Очистить</button>
+    </div>
+    <div class="console-body" id="consoleLog">
+      <div class="log-entry">
+        <span class="log-time">[00:00:00]</span>
+        Консоль готова. Жду загрузки виджета...
+      </div>
+    </div>
+  </div>
+
+  <!-- Лоадер виджета -->
+  <div class="widget-loader" id="widgetLoader">
+    <div class="spinner"></div>
+    <div>
+      <div class="loader-text">Загрузка виджета...</div>
+      <div class="loader-subtext" id="loaderSubtext">Инициализация</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Контейнер для динамической загрузки виджета -->
   <div id="widgetContainer"></div>
 
   <script>
+    // ========================================
+    // Система логирования
+    // ========================================
+    function getTimeStamp() {
+      const now = new Date();
+      return now.toTimeString().split(' ')[0];
+    }
+
+    function addLog(message, type = 'info') {
+      const consoleBody = document.getElementById('consoleLog');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `<span class="log-time">[${getTimeStamp()}]</span>${message}`;
+      consoleBody.appendChild(entry);
+      consoleBody.scrollTop = consoleBody.scrollHeight;
+    }
+
+    function clearLogs() {
+      const consoleBody = document.getElementById('consoleLog');
+      consoleBody.innerHTML = '<div class="log-entry"><span class="log-time">[' + getTimeStamp() + ']</span>Консоль очищена</div>';
+    }
+
+    // Перехватываем console.log/error/warn
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+
+    console.log = function(...args) {
+      originalConsoleLog.apply(console, args);
+      addLog(args.join(' '), 'info');
+    };
+
+    console.error = function(...args) {
+      originalConsoleError.apply(console, args);
+      addLog('❌ ' + args.join(' '), 'error');
+    };
+
+    console.warn = function(...args) {
+      originalConsoleWarn.apply(console, args);
+      addLog('⚠️ ' + args.join(' '), 'warning');
+    };
+
+    // Перехватываем глобальные ошибки
+    window.addEventListener('error', (event) => {
+      addLog(`❌ JavaScript Error: ${event.message} (${event.filename}:${event.lineno})`, 'error');
+    });
+
+    // Перехватываем необработанные promise rejections
+    window.addEventListener('unhandledrejection', (event) => {
+      addLog(`❌ Promise Rejection: ${event.reason}`, 'error');
+    });
+
+    // Перехватываем fetch/XHR запросы
+    const originalFetch = window.fetch;
+    window.fetch = function(...args) {
+      const url = args[0];
+      addLog(`🌐 Fetch запрос: ${url}`, 'info');
+      
+      return originalFetch.apply(this, args)
+        .then(response => {
+          if (response.ok) {
+            addLog(`✅ Fetch успешен: ${url} (${response.status})`, 'success');
+          } else {
+            addLog(`❌ Fetch ошибка: ${url} (${response.status})`, 'error');
+          }
+          return response;
+        })
+        .catch(error => {
+          addLog(`❌ Fetch провален: ${url} - ${error.message}`, 'error');
+          throw error;
+        });
+    };
+
+    // ========================================
+    // Управление лоадером
+    // ========================================
+    function showLoader(text = 'Инициализация', progress = 0) {
+      const loader = document.getElementById('widgetLoader');
+      const subtext = document.getElementById('loaderSubtext');
+      const progressFill = document.getElementById('progressFill');
+      loader.classList.add('active');
+      subtext.textContent = text;
+      progressFill.style.width = progress + '%';
+    }
+
+    function hideLoader() {
+      const loader = document.getElementById('widgetLoader');
+      const progressFill = document.getElementById('progressFill');
+      progressFill.style.width = '100%';
+      
+      setTimeout(() => {
+        loader.classList.remove('active');
+        progressFill.style.width = '0%';
+      }, 500);
+    }
+
+    function updateLoaderText(text, progress = null) {
+      const subtext = document.getElementById('loaderSubtext');
+      const progressFill = document.getElementById('progressFill');
+      subtext.textContent = text;
+      if (progress !== null) {
+        progressFill.style.width = progress + '%';
+      }
+    }
+
+    // ========================================
     // Функция загрузки виджета
-    function loadWidget() {
+    // ========================================
+    function loadWidget(event) {
+      // Предотвращаем любые дефолтные действия
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      addLog('🔄 Начинаю загрузку виджета...', 'info');
+      showLoader('Подготовка...', 10);
+      
       const code = document.getElementById('widgetCode').value.trim();
       const container = document.getElementById('widgetContainer');
       
@@ -175,12 +487,19 @@
       
       // Удаляем все старые скрипты виджета
       const oldScripts = document.querySelectorAll('script[data-lawyer-id]');
-      oldScripts.forEach(script => script.remove());
+      if (oldScripts.length > 0) {
+        addLog(`🗑️ Удаляю ${oldScripts.length} старых скриптов`, 'warning');
+        oldScripts.forEach(script => script.remove());
+      }
       
       if (!code) {
+        addLog('⚠️ Код виджета пустой!', 'error');
+        hideLoader();
         alert('⚠️ Вставь код виджета!');
-        return;
+        return false;
       }
+      
+      setTimeout(() => updateLoaderText('Парсинг кода...', 25), 200);
       
       // Извлекаем атрибуты из кода
       const parser = new DOMParser();
@@ -188,9 +507,22 @@
       const scriptTag = doc.querySelector('script');
       
       if (!scriptTag) {
+        addLog('❌ Не найден тег <script> в коде', 'error');
+        hideLoader();
         alert('⚠️ Неверный формат! Вставь код <script>');
-        return;
+        return false;
       }
+      
+      // Логируем атрибуты
+      const src = scriptTag.getAttribute('src');
+      const lawyerId = scriptTag.getAttribute('data-lawyer-id');
+      const buttonColor = scriptTag.getAttribute('data-button-color');
+      
+      addLog(`📋 URL скрипта: ${src}`, 'info');
+      addLog(`📋 Lawyer ID: ${lawyerId}`, 'info');
+      addLog(`📋 Цвет кнопки: ${buttonColor}`, 'info');
+      
+      setTimeout(() => updateLoaderText('Загрузка скрипта...', 40), 400);
       
       // Создаем новый script элемент
       const newScript = document.createElement('script');
@@ -200,16 +532,86 @@
         newScript.setAttribute(attr.name, attr.value);
       });
       
-      // Добавляем скрипт в body
-      document.body.appendChild(newScript);
+      // Отслеживаем загрузку скрипта
+      newScript.onload = function() {
+        addLog('✅ Скрипт виджета успешно загружен', 'success');
+        addLog('⏳ Ожидаю инициализацию виджета...', 'info');
+        updateLoaderText('Инициализация виджета...', 70);
+        
+        // Скрываем лоадер через 3 секунды (даем время виджету инициализироваться)
+        setTimeout(() => {
+          updateLoaderText('Почти готово...', 90);
+        }, 1500);
+        
+        setTimeout(() => {
+          hideLoader();
+          addLog('✅ Виджет должен быть готов!', 'success');
+        }, 3000);
+      };
       
-      console.log('✅ Виджет загружен!');
+      newScript.onerror = function(e) {
+        addLog(`❌ Ошибка загрузки скрипта: ${e}`, 'error');
+        hideLoader();
+      };
+      
+      // Добавляем скрипт в body
+      setTimeout(() => {
+        document.body.appendChild(newScript);
+        addLog('📤 Скрипт добавлен в DOM', 'info');
+        updateLoaderText('Загрузка компонентов...', 55);
+      }, 600);
+      
+      return false; // Предотвращаем любую навигацию
     }
 
-    // Автоматически загружаем виджет при открытии страницы
-    window.addEventListener('load', () => {
-      setTimeout(loadWidget, 500);
+    // ========================================
+    // Защита от перезагрузки страницы
+    // ========================================
+    
+    // Перехватываем попытки навигации
+    let widgetLoaded = false;
+    
+    window.addEventListener('beforeunload', (event) => {
+      if (widgetLoaded) {
+        // Можно раскомментировать если нужно предупреждение
+        // event.preventDefault();
+        // event.returnValue = '';
+        addLog('⚠️ Попытка покинуть страницу обнаружена', 'warning');
+      }
     });
+
+    // Блокируем отправку форм на странице
+    document.addEventListener('submit', (event) => {
+      event.preventDefault();
+      addLog('⚠️ Блокировка отправки формы', 'warning');
+      return false;
+    });
+
+    // Перехватываем клики по ссылкам
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('a');
+      if (target && target.href && target.href !== '#' && !target.target) {
+        const url = target.href;
+        if (!url.startsWith('javascript:')) {
+          addLog(`⚠️ Блокировка перехода по ссылке: ${url}`, 'warning');
+          event.preventDefault();
+          return false;
+        }
+      }
+    });
+
+    // ========================================
+    // Автозагрузка при открытии страницы
+    // ========================================
+    window.addEventListener('load', () => {
+      addLog('🚀 Страница загружена, запускаю виджет через 500ms...', 'success');
+      setTimeout(() => {
+        loadWidget();
+        widgetLoaded = true;
+      }, 500);
+    });
+
+    addLog('✅ Система отладки инициализирована', 'success');
   </script>
 </body>
 </html>
